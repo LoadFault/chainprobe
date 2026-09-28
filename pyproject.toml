@@ -1,0 +1,43 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "chainprobe"
+version = "0.2.0"
+description = "Health checks and API tests for Substrate + EVM (Frontier) networks"
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.10"
+dependencies = [
+    "requests>=2.31",
+    "websockets>=13.0",
+    "pydantic>=2.5",
+    "pytest>=8.0",
+    "pytest-html>=4.1",
+    "pytest-metadata>=3.0",
+]
+
+[project.optional-dependencies]
+dev = ["ruff>=0.5"]
+
+[project.scripts]
+chainprobe = "chainprobe.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = [
+    "smoke: fast checks of the public RPC",
+    "slow: tests that watch the network for a minute or more",
+    "perf: latency measurements",
+]
+
+[tool.ruff]
+line-length = 110
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP"]
