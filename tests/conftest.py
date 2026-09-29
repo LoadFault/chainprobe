@@ -25,7 +25,7 @@ def pytest_configure(config):
     metadata.clear()
     metadata["Network"] = config.network.name
     metadata["EVM RPC"] = config.network.rpc
-    metadata["Substrate WSS"] = config.network.wss
+    metadata["Substrate WSS"] = config.network.wss or "not used"
 
 
 @pytest.fixture(scope="session")
@@ -42,6 +42,8 @@ def evm(network, pytestconfig):
 
 @pytest.fixture
 def ws(network):
+    if network.wss is None:
+        pytest.skip("network has no Substrate WebSocket endpoint")
     with open_ws(network.wss) as client:
         yield client
 

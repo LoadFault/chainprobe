@@ -3,12 +3,18 @@
 [![ci](https://github.com/loadfault/chainprobe/actions/workflows/ci.yml/badge.svg)](https://github.com/loadfault/chainprobe/actions/workflows/ci.yml)
 [![nightly](https://github.com/loadfault/chainprobe/actions/workflows/nightly.yml/badge.svg)](https://github.com/loadfault/chainprobe/actions/workflows/nightly.yml)
 
-API tests and health checks for Substrate + EVM (Frontier) networks, written with pytest.
+API tests and health checks for EVM networks, with extra checks for Substrate + Frontier chains. Written with pytest.
 
 The suite talks to a live network the way wallets, dApps and indexers do and checks that
-the answers are correct, consistent between the EVM and Substrate APIs, and fast.
+the answers are correct, consistent and fast.
 Everything is read-only and rate-limited to 2 requests per second by default.
-The default target is the [Orbinum](https://orbinum.network) testnet.
+
+| Preset | Network | APIs tested |
+|--------|---------|-------------|
+| `orbinum` (default) | [Orbinum](https://orbinum.network) testnet, Substrate + Frontier | EVM JSON-RPC, Substrate WebSocket |
+| `zenith` | [Zenith](https://zenith.network) EVM testnet on Canton | EVM JSON-RPC |
+
+Tests that need an API the network doesn't expose are skipped.
 
 ## What is tested
 
@@ -17,6 +23,7 @@ The default target is the [Orbinum](https://orbinum.network) testnet.
 | `test_evm_rpc.py` | chain id, block schema (pydantic), freshness, parent-hash chain, block by hash vs by number, block production, gas price |
 | `test_rpc_errors.py` | JSON-RPC error codes for unknown methods, invalid params and malformed JSON; batch requests |
 | `test_logs.py` | `eth_getLogs` inside and beyond the node's block-range limit |
+| `test_block_production.py` | average block time and finality lag against the values the network advertises |
 | `test_consistency.py` | EVM vs Substrate: head height, block timestamp from `Timestamp::Now` storage, finalized block, finality lag |
 | `test_subscriptions.py` | `eth_subscribe newHeads` continuity; stability of the Substrate head stream over time |
 | `test_performance.py` | p95 RPC latency after warm-up |
@@ -37,6 +44,7 @@ With pytest directly:
 
 ```bash
 pytest tests/live                          # full suite against Orbinum
+pytest tests/live --network zenith         # Zenith EVM testnet
 pytest tests/live -m smoke                 # quick RPC checks only
 pytest tests/live -m "not slow" --html=report.html --self-contained-html
 pytest tests/live --rpc https://rpc.example.org --wss wss://rpc.example.org --chain-id 1284
@@ -72,7 +80,7 @@ tests/
 ## CI
 
 - `ci.yml` runs ruff and the unit tests on every push.
-- `nightly.yml` runs the live suite against Orbinum every night and uploads the HTML report as an artifact.
+- `nightly.yml` runs the live suite against every preset network each night and uploads the HTML reports as artifacts.
 
 ## Results: Orbinum testnet, 2026-09-26
 
@@ -96,3 +104,5 @@ Notes for builders:
 ## License
 
 MIT
+
+Built by [LoadFault](https://loadfault.com) — independent QA for Web3 networks.

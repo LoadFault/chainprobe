@@ -41,6 +41,9 @@ def run_checks(args: argparse.Namespace) -> int:
 
 def run_monitor(args: argparse.Namespace) -> int:
     network = resolve_network(args.network, args.rpc, args.wss, args.chain_id)
+    if network.wss is None:
+        print(f"{network.name} has no Substrate WebSocket endpoint, nothing to monitor")
+        return 1
     print(f"Watching {network.wss} for {args.duration}s")
 
     def show(head: dict) -> None:

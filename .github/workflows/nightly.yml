@@ -6,17 +6,21 @@ on:
   workflow_dispatch:
 
 jobs:
-  orbinum:
+  live:
     runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        network: [orbinum, zenith]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
       - run: pip install -e .
-      - run: pytest tests/live -v --network orbinum --html=report.html --self-contained-html
+      - run: pytest tests/live -v --network ${{ matrix.network }} --html=report.html --self-contained-html
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: orbinum-report
+          name: ${{ matrix.network }}-report
           path: report.html

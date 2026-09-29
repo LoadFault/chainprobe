@@ -18,10 +18,13 @@ def test_get_logs_within_range_limit(evm, span):
     assert isinstance(response.json()["result"], list)
 
 
-@pytest.mark.parametrize("span", [5_000, 100_000])
-def test_get_logs_over_range_limit_is_rejected_cleanly(evm, span):
+@pytest.mark.parametrize("multiplier", [5, 100])
+def test_get_logs_over_range_limit_is_rejected_cleanly(evm, network, multiplier):
+    if network.logs_range_limit is None:
+        pytest.skip("range limit of this network is unknown")
+
     # Rejecting a wide query is fine; hanging or crashing on it is not.
-    response = logs_request(evm, span)
+    response = logs_request(evm, network.logs_range_limit * multiplier)
 
     assert response.status_code < 500
     assert "error" in response.json()
