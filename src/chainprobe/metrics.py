@@ -72,3 +72,24 @@ def collect_heads(
         if on_head:
             on_head(head)
     return heads, stalls
+
+
+@dataclass
+class Pause:
+    from_block: int
+    to_block: int
+    seconds: int
+
+
+def find_pauses(samples: list[tuple[int, int]], block_time: float, factor: float = 3) -> list[Pause]:
+    """Find windows where the chain produced blocks much slower than advertised.
+
+    samples: (block number, timestamp) pairs taken every N blocks, in order.
+    A window is a pause when it took more than `factor` times the expected time.
+    """
+    pauses = []
+    for (prev_number, prev_time), (number, timestamp) in pairwise(samples):
+        expected = (number - prev_number) * block_time
+        if timestamp - prev_time > expected * factor:
+            pauses.append(Pause(prev_number, number, timestamp - prev_time))
+    return pauses

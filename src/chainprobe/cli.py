@@ -16,7 +16,7 @@ LIVE_TESTS = Path(__file__).resolve().parents[2] / "tests" / "live"
 def add_network_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--network", default="orbinum", choices=list(NETWORKS))
     parser.add_argument("--rpc", help="EVM JSON-RPC URL (overrides the preset)")
-    parser.add_argument("--wss", help="Substrate WebSocket URL (overrides the preset)")
+    parser.add_argument("--wss", help="WebSocket URL, Substrate or EVM (overrides the preset)")
     parser.add_argument("--chain-id", type=int, help="expected EVM chain id")
 
 
@@ -42,7 +42,7 @@ def run_checks(args: argparse.Namespace) -> int:
 def run_monitor(args: argparse.Namespace) -> int:
     network = resolve_network(args.network, args.rpc, args.wss, args.chain_id)
     if network.wss is None:
-        print(f"{network.name} has no Substrate WebSocket endpoint, nothing to monitor")
+        print(f"{network.name} has no WebSocket endpoint, nothing to monitor")
         return 1
     print(f"Watching {network.wss} for {args.duration}s")
 
@@ -50,7 +50,11 @@ def run_monitor(args: argparse.Namespace) -> int:
         print(f"  {time.strftime('%H:%M:%S')}  #{to_int(head['number'])}")
 
     with open_ws(network.wss) as ws:
-        heads, stalls = collect_heads(ws, "chain_subscribeNewHeads", args.duration, on_head=show)
+        if ws.is_substrate():
+            method, params = "chain_subscribeNewHeads", None
+        else:
+            method, params = "eth_subscribe", ["newHeads"]
+        heads, stalls = collect_heads(ws, method, args.duration, params=params, on_head=show)
 
     stats = analyze_heads([(t, to_int(head["number"])) for t, head in heads])
     if stats.count < 2:

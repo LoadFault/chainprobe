@@ -14,7 +14,8 @@ Everything is read-only and rate-limited to 2 requests per second by default.
 | `orbinum` (default) | [Orbinum](https://orbinum.network) testnet, Substrate + Frontier | EVM JSON-RPC, Substrate WebSocket |
 | `zenith` | [Zenith](https://zenith.network) EVM testnet on Canton | EVM JSON-RPC |
 
-Tests that need an API the network doesn't expose are skipped.
+Tests that need an API the network doesn't expose are skipped. `--wss` accepts both Substrate and EVM-only WebSocket endpoints:
+Substrate-specific checks run only when the node serves Substrate RPC.
 
 ## What is tested
 
@@ -24,8 +25,8 @@ Tests that need an API the network doesn't expose are skipped.
 | `test_rpc_errors.py` | JSON-RPC error codes for unknown methods, invalid params and malformed JSON; batch requests |
 | `test_logs.py` | `eth_getLogs` inside and beyond the node's block-range limit |
 | `test_block_production.py` | average block time and finality lag against the values the network advertises |
-| `test_consistency.py` | EVM vs Substrate: head height, block timestamp from `Timestamp::Now` storage, finalized block, finality lag |
-| `test_subscriptions.py` | `eth_subscribe newHeads` continuity; stability of the Substrate head stream over time |
+| `test_consistency.py` | EVM vs Substrate: head height, block timestamp from `Timestamp::Now` storage, finalized block, finality lag (skipped on EVM-only nodes) |
+| `test_subscriptions.py` | `eth_subscribe newHeads` continuity on any WebSocket endpoint; stability of the Substrate head stream over time |
 | `test_performance.py` | p95 RPC latency after warm-up |
 
 Markers: `smoke` (fast RPC checks), `slow` (watch the network for a minute or more), `perf`.
@@ -62,6 +63,11 @@ chainprobe monitor --duration 600
 `monitor` prints every new block as it arrives and ends with interval statistics,
 gaps and stalls. It exits with code 1 if the stream had problems.
 
+## Load testing
+
+`load/rpc_load.js` is a stepped k6 load test for EVM JSON-RPC endpoints with automatic stop conditions.
+See [load/README.md](load/README.md). Run it only with the operators' agreement.
+
 ## Project layout
 
 ```
@@ -71,6 +77,8 @@ src/chainprobe/
   metrics.py    percentiles and head-stream analysis
   config.py     network presets
   cli.py        check / monitor commands
+load/
+  rpc_load.js   k6 stepped load test
 tests/
   conftest.py   command-line options and client fixtures
   live/         tests against a real network

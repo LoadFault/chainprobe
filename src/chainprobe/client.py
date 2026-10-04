@@ -70,7 +70,7 @@ class EvmClient:
 
 
 class WsClient:
-    """JSON-RPC over WebSocket, used for Substrate methods and subscriptions.
+    """JSON-RPC over WebSocket: subscriptions on any node, Substrate methods where available.
 
     A subscription pushes messages on the same socket we use for requests,
     so notifications that arrive while waiting for a response are queued.
@@ -108,6 +108,14 @@ class WsClient:
             params = message.get("params", {})
             if params.get("subscription") == subscription_id:
                 return params["result"]
+
+    def is_substrate(self) -> bool:
+        """EVM-only nodes (Geth, Nitro, ...) also serve WebSocket, but without Substrate RPC."""
+        try:
+            methods = self.call("rpc_methods")["methods"]
+        except RpcError:
+            return False
+        return "chain_getHeader" in methods
 
     def best_number(self) -> int:
         return to_int(self.call("chain_getHeader")["number"])

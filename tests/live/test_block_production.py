@@ -2,14 +2,16 @@
 
 import pytest
 
+from chainprobe.metrics import find_pauses
 from chainprobe.models import Block
-
-pytestmark = pytest.mark.smoke
 
 SAMPLE_BLOCKS = 50
 BLOCK_TIME_TOLERANCE = 0.3
+LOOKBACK_SECONDS = 24 * 60 * 60
+SAMPLE_STEP = 60
 
 
+@pytest.mark.smoke
 def test_block_time_matches_spec(evm, network, record_property):
     if network.block_time is None:
         pytest.skip("no advertised block time for this network")
@@ -26,6 +28,7 @@ def test_block_time_matches_spec(evm, network, record_property):
     )
 
 
+@pytest.mark.smoke
 def test_finalized_block_trails_latest_within_spec(evm, network, record_property):
     latest = Block.model_validate(evm.get_block("latest"))
     finalized_raw = evm.get_block("finalized")
@@ -42,3 +45,20 @@ def test_finalized_block_trails_latest_within_spec(evm, network, record_property
         assert lag_seconds <= network.max_finality_seconds, (
             f"finalized block is {lag_seconds}s behind latest, expected <= {network.max_finality_seconds}s"
         )
+
+
+@pytest.mark.slow
+def test_no_block_production_pauses_in_last_day(evm, network, record_property):
+    # Sampling every N-th block keeps this to a few hundred requests for a whole day;
+    # a window that took far longer than N blocks should means production stalled inside it.
+    if network.block_time is None:
+        pytest.skip("no advertised block time for this network")
+
+    latest = evm.block_number()
+    lookback = int(LOOKBACK_SECONDS / network.block_time)
+    numbers = range(max(0, latest - lookback), latest + 1, SAMPLE_STEP)
+    samples = [(n, Block.model_validate(evm.get_block(n)).time) for n in numbers]
+
+    pauses = find_pauses(samples, network.block_time)
+    record_property("pauses", [f"#{p.from_block}-#{p.to_block}: {p.seconds}s" for p in pauses])
+    assert not pauses, f"block production stalled: {pauses}"

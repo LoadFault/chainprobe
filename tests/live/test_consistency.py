@@ -11,37 +11,37 @@ FINALITY_INTERVAL = 10
 MAX_FINALITY_LAG = 5
 
 
-def test_evm_and_substrate_heads_match(evm, ws):
+def test_evm_and_substrate_heads_match(evm, substrate):
     evm_head = evm.block_number()
-    substrate_head = ws.best_number()
+    substrate_head = substrate.best_number()
 
     # the two reads are not atomic, a new block may land in between
     assert abs(substrate_head - evm_head) <= 1
 
 
-def test_block_timestamp_matches_substrate_storage(evm, ws):
+def test_block_timestamp_matches_substrate_storage(evm, substrate):
     # use a finalized block so both sides are guaranteed to see the same one
-    block_hash = ws.finalized_hash()
-    number = ws.number_of(block_hash)
+    block_hash = substrate.finalized_hash()
+    number = substrate.number_of(block_hash)
 
     evm_block = Block.model_validate(evm.get_block(number))
 
-    assert evm_block.time == ws.timestamp_ms(block_hash) // 1000
+    assert evm_block.time == substrate.timestamp_ms(block_hash) // 1000
 
 
-def test_finalized_tag_matches_substrate(evm, ws):
+def test_finalized_tag_matches_substrate(evm, substrate):
     evm_finalized = Block.model_validate(evm.get_block("finalized")).height
 
-    assert abs(ws.finalized_number() - evm_finalized) <= 2
+    assert abs(substrate.finalized_number() - evm_finalized) <= 2
 
 
 @pytest.mark.slow
-def test_finality_keeps_up_with_chain(ws, record_property):
+def test_finality_keeps_up_with_chain(substrate, record_property):
     lags, finalized = [], []
     for i in range(FINALITY_SAMPLES):
         if i:
             time.sleep(FINALITY_INTERVAL)
-        best, final = ws.best_number(), ws.finalized_number()
+        best, final = substrate.best_number(), substrate.finalized_number()
         lags.append(best - final)
         finalized.append(final)
 

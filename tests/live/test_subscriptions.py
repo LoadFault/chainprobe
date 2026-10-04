@@ -19,9 +19,9 @@ def test_eth_subscribe_new_heads_are_sequential(ws):
 
 
 @pytest.mark.slow
-def test_block_stream_is_stable(ws, pytestconfig, record_property):
+def test_block_stream_is_stable(substrate, pytestconfig, record_property):
     duration = pytestconfig.getoption("--monitor-duration")
-    heads, stalls = collect_heads(ws, "chain_subscribeNewHeads", duration)
+    heads, stalls = collect_heads(substrate, "chain_subscribeNewHeads", duration)
     stats = analyze_heads([(t, to_int(head["number"])) for t, head in heads])
 
     record_property("heads", stats.count)

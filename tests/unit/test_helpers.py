@@ -2,7 +2,7 @@ import pytest
 from pydantic import ValidationError
 
 from chainprobe.client import decode_u64
-from chainprobe.metrics import analyze_heads, percentile
+from chainprobe.metrics import Pause, analyze_heads, find_pauses, percentile
 from chainprobe.models import Block
 
 VALID_BLOCK = {
@@ -49,3 +49,13 @@ def test_analyze_heads_finds_gap():
 
 def test_analyze_heads_finds_non_increasing_head():
     assert analyze_heads([(0, 10), (6, 11), (12, 11)]).backwards == [(11, 11)]
+
+
+def test_find_pauses_on_steady_chain():
+    samples = [(n, n * 5) for n in range(0, 600, 60)]
+    assert find_pauses(samples, block_time=5) == []
+
+
+def test_find_pauses_reports_the_window_with_a_stall():
+    samples = [(0, 0), (60, 300), (120, 300 + 8238), (180, 300 + 8238 + 300)]
+    assert find_pauses(samples, block_time=5) == [Pause(60, 120, 8238)]

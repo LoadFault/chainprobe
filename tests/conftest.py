@@ -11,7 +11,7 @@ def pytest_addoption(parser):
     group = parser.getgroup("chainprobe")
     group.addoption("--network", default="orbinum", choices=list(NETWORKS), help="network preset")
     group.addoption("--rpc", help="EVM JSON-RPC URL (overrides the preset)")
-    group.addoption("--wss", help="Substrate WebSocket URL (overrides the preset)")
+    group.addoption("--wss", help="WebSocket URL, Substrate or EVM (overrides the preset)")
     group.addoption("--chain-id", type=int, help="expected EVM chain id")
     group.addoption("--rps", type=float, default=2.0, help="max requests per second")
     group.addoption("--monitor-duration", type=int, default=120, help="seconds to watch the block stream")
@@ -25,7 +25,7 @@ def pytest_configure(config):
     metadata.clear()
     metadata["Network"] = config.network.name
     metadata["EVM RPC"] = config.network.rpc
-    metadata["Substrate WSS"] = config.network.wss or "not used"
+    metadata["WebSocket"] = config.network.wss or "not used"
 
 
 @pytest.fixture(scope="session")
@@ -43,9 +43,16 @@ def evm(network, pytestconfig):
 @pytest.fixture
 def ws(network):
     if network.wss is None:
-        pytest.skip("network has no Substrate WebSocket endpoint")
+        pytest.skip("network has no WebSocket endpoint")
     with open_ws(network.wss) as client:
         yield client
+
+
+@pytest.fixture
+def substrate(ws):
+    if not ws.is_substrate():
+        pytest.skip("WebSocket endpoint has no Substrate RPC")
+    return ws
 
 
 def pytest_html_report_title(report):

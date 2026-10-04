@@ -11,9 +11,10 @@ def node_info(network, evm, pytestconfig):
     try:
         if network.wss:
             with open_ws(network.wss) as ws:
-                metadata["Node"] = f"{ws.call('system_name')} {ws.call('system_version')}"
-                metadata["Peers"] = ws.call("system_health").get("peers")
-        else:
-            metadata["Node"] = evm.call("web3_clientVersion")
+                if ws.is_substrate():
+                    metadata["Node"] = f"{ws.call('system_name')} {ws.call('system_version')}"
+                    metadata["Peers"] = ws.call("system_health").get("peers")
+                    return
+        metadata["Node"] = evm.call("web3_clientVersion")
     except Exception as exc:
         metadata["Node"] = f"unavailable ({type(exc).__name__})"
