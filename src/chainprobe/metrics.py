@@ -4,7 +4,9 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from itertools import pairwise
 
-from .client import WsClient
+from websockets.exceptions import ConnectionClosed
+
+from .client import WsClient, to_int
 
 
 def percentile(values: list[float], p: float) -> float:
@@ -32,6 +34,16 @@ class HeadStats:
     def jitter(self) -> float:
         return statistics.pstdev(self.intervals)
 
+    @classmethod
+    def merge(cls, parts: list["HeadStats"]) -> "HeadStats":
+        """Combine stats of separate connections without treating a reconnect as a gap."""
+        return cls(
+            count=sum(part.count for part in parts),
+            gaps=[gap for part in parts for gap in part.gaps],
+            backwards=[pair for part in parts for pair in part.backwards],
+            intervals=[interval for part in parts for interval in part.intervals],
+        )
+
 
 def analyze_heads(heads: list[tuple[float, int]]) -> HeadStats:
     """heads: (arrival time, block number) pairs from one subscription, in order."""
@@ -45,6 +57,16 @@ def analyze_heads(heads: list[tuple[float, int]]) -> HeadStats:
     return stats
 
 
+@dataclass
+class HeadStream:
+    heads: list[tuple[float, dict]] = field(default_factory=list)
+    stalls: int = 0
+    closed_after: float | None = None
+
+    def stats(self) -> HeadStats:
+        return analyze_heads([(arrival, to_int(head["number"])) for arrival, head in self.heads])
+
+
 def collect_heads(
     ws: WsClient,
     subscribe_method: str,
@@ -52,26 +74,31 @@ def collect_heads(
     params: list | None = None,
     stall_timeout: float = 60.0,
     on_head: Callable[[dict], None] | None = None,
-) -> tuple[list[tuple[float, dict]], int]:
+) -> HeadStream:
     """Subscribe to new heads and record them for `duration` seconds.
 
-    Returns the received heads with their arrival time and the number of
-    stalls (periods of `stall_timeout` seconds without a new head).
+    A stall is a period of `stall_timeout` seconds without a new head.
+    If the server drops the connection, collection stops and `closed_after`
+    holds the connection's lifetime in seconds.
     """
+    started = time.monotonic()
     subscription = ws.call(subscribe_method, params)
-    heads, stalls = [], 0
-    deadline = time.monotonic() + duration
+    stream = HeadStream()
+    deadline = started + duration
     while (remaining := deadline - time.monotonic()) > 0:
         try:
             head = ws.next_event(subscription, timeout=min(stall_timeout, remaining))
         except TimeoutError:
             if time.monotonic() < deadline:
-                stalls += 1
+                stream.stalls += 1
             continue
-        heads.append((time.monotonic(), head))
+        except ConnectionClosed:
+            stream.closed_after = time.monotonic() - started
+            break
+        stream.heads.append((time.monotonic(), head))
         if on_head:
             on_head(head)
-    return heads, stalls
+    return stream
 
 
 @dataclass

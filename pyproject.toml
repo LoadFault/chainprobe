@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "chainprobe"
-version = "0.3.1"
+version = "0.3.2"
 description = "API tests and health checks for EVM and Substrate + Frontier networks"
 readme = "README.md"
 license = { text = "MIT" }

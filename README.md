@@ -61,7 +61,8 @@ chainprobe monitor --duration 600
 ```
 
 `monitor` prints every new block as it arrives and ends with interval statistics,
-gaps and stalls. It exits with code 1 if the stream had problems.
+gaps and stalls. If the server drops the connection, it reconnects and reports how long
+each connection lived. It exits with code 1 if the stream had problems.
 
 ## Load testing
 

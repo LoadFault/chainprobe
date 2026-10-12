@@ -5,10 +5,11 @@ from datetime import datetime
 from pathlib import Path
 
 import pytest
+from websockets.exceptions import WebSocketException
 
 from .client import open_ws, to_int
 from .config import NETWORKS, resolve_network
-from .metrics import analyze_heads, collect_heads
+from .metrics import HeadStats, HeadStream, collect_heads
 
 LIVE_TESTS = Path(__file__).resolve().parents[2] / "tests" / "live"
 
@@ -49,25 +50,42 @@ def run_monitor(args: argparse.Namespace) -> int:
     def show(head: dict) -> None:
         print(f"  {time.strftime('%H:%M:%S')}  #{to_int(head['number'])}")
 
-    with open_ws(network.wss) as ws:
-        if ws.is_substrate():
-            method, params = "chain_subscribeNewHeads", None
-        else:
-            method, params = "eth_subscribe", ["newHeads"]
-        heads, stalls = collect_heads(ws, method, args.duration, params=params, on_head=show)
+    sessions: list[HeadStream] = []
+    deadline = time.monotonic() + args.duration
+    while (remaining := deadline - time.monotonic()) > 1:
+        try:
+            with open_ws(network.wss) as ws:
+                if ws.is_substrate():
+                    method, params = "chain_subscribeNewHeads", None
+                else:
+                    method, params = "eth_subscribe", ["newHeads"]
+                stream = collect_heads(ws, method, remaining, params=params, on_head=show)
+        except (OSError, WebSocketException) as exc:
+            print(f"  cannot connect: {exc}")
+            break
+        sessions.append(stream)
+        if stream.closed_after is None:
+            break
+        lifetime = f"{stream.closed_after:.0f}s"
+        print(f"  {time.strftime('%H:%M:%S')}  server closed the connection after {lifetime}, reconnecting")
 
-    stats = analyze_heads([(t, to_int(head["number"])) for t, head in heads])
+    # each connection is analyzed on its own: blocks missed while reconnecting are not gaps
+    stats = HeadStats.merge([session.stats() for session in sessions])
+    stalls = sum(session.stalls for session in sessions)
+    drops = [round(session.closed_after) for session in sessions if session.closed_after is not None]
     if stats.count < 2:
         print("Not enough heads received")
         return 1
 
-    print(f"\nheads: {stats.count}, stalls: {stalls}")
+    print(f"\nheads: {stats.count}, stalls: {stalls}, dropped connections: {len(drops)}")
+    if drops:
+        print(f"connection lifetimes before a drop: {', '.join(f'{d}s' for d in drops)}")
     print(
         f"interval: mean {stats.mean_interval:.2f}s, p95 {stats.p95_interval}s, "
         f"max {max(stats.intervals)}s, jitter {stats.jitter:.2f}s"
     )
     print(f"gaps: {stats.gaps or 'none'}, non-increasing: {stats.backwards or 'none'}")
-    return 1 if stalls or stats.gaps or stats.backwards else 0
+    return 1 if stalls or drops or stats.gaps or stats.backwards else 0
 
 
 def main() -> int:
